@@ -24,6 +24,8 @@ contract NFTSTORE is ERC721URIStorage {
         _;
     }
 
+    event NFTBought(address indexed buyer, address indexed seller, uint256 indexed tokenId, uint256 price);
+
     constructor() ERC721("NFTSTORE", "NFTS"){
         marketplaceOwner = payable(msg.sender);
     }
@@ -81,6 +83,8 @@ contract NFTSTORE is ERC721URIStorage {
         uint256 listingFee = (price * listingFeePercent) / 100;
         marketplaceOwner.transfer(listingFee);
         seller.transfer(msg.value - listingFee);
+
+        emit NFTBought(msg.sender, seller, tokenId, price); // Emit the event
     }
 
     function getAllListedNFTs() public view returns (NFTListing[] memory){
