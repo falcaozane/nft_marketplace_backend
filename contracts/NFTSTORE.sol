@@ -15,6 +15,7 @@ contract NFTSTORE is ERC721URIStorage {
         address payable owner;
         address payable seller;
         uint256 price;
+        bool isListed;
     }
 
     mapping (uint256 => NFTListing) private tokenIdToListing;
@@ -24,13 +25,11 @@ contract NFTSTORE is ERC721URIStorage {
         _;
     }
 
-    event NFTBought(address indexed buyer, address indexed seller, uint256 indexed tokenId, uint256 price);
-
-    constructor() ERC721("NFTSTORE", "NFTS"){
+    constructor() ERC721("NFTSTORE", "NFTS") {
         marketplaceOwner = payable(msg.sender);
     }
 
-    function updateListingFeePercent(uint256 _listingFeePercent) public onlyOwner{
+    function updateListingFeePercent(uint256 _listingFeePercent) public onlyOwner {
         listingFeePercent = _listingFeePercent;
     }
 
@@ -42,11 +41,11 @@ contract NFTSTORE is ERC721URIStorage {
         return currentTokenId;
     }
 
-    function getNFTListing(uint256 _tokenId) public view returns(NFTListing memory){
+    function getNFTListing(uint256 _tokenId) public view returns(NFTListing memory) {
         return tokenIdToListing[_tokenId];
     }
 
-    function createToken(string memory _tokenURI, uint256 _price) public returns(uint256){
+    function createToken(string memory _tokenURI, uint256 _price) public returns(uint256) {
         require(_price > 0, "Price must be greater than zero");
 
         currentTokenId++;
@@ -59,16 +58,17 @@ contract NFTSTORE is ERC721URIStorage {
         return newTokenId;
     }
 
-    function _createNFTListing(uint256 _tokenId, uint256 _price) private{
+    function _createNFTListing(uint256 _tokenId, uint256 _price) private {
         tokenIdToListing[_tokenId] = NFTListing({
             tokenId: _tokenId,
             owner: payable(msg.sender),
             seller: payable(msg.sender),
-            price: _price
+            price: _price,
+            isListed: true
         });
     }
 
-    function executeSale(uint256 tokenId) public payable{
+    function executeSale(uint256 tokenId) public payable {
         NFTListing storage listing = tokenIdToListing[tokenId];
         uint256 price = listing.price;
         address payable seller = listing.seller;
@@ -76,6 +76,7 @@ contract NFTSTORE is ERC721URIStorage {
         require(msg.value == price, "Please submit the asking price to complete the purchase");
 
         listing.seller = payable(msg.sender);
+        listing.isListed = false; // Mark as not listed after sale
         totalItemsSold++;
 
         _transfer(listing.owner, msg.sender, tokenId);
@@ -83,20 +84,27 @@ contract NFTSTORE is ERC721URIStorage {
         uint256 listingFee = (price * listingFeePercent) / 100;
         marketplaceOwner.transfer(listingFee);
         seller.transfer(msg.value - listingFee);
-
-        emit NFTBought(msg.sender, seller, tokenId, price); // Emit the event
     }
 
-    function getAllListedNFTs() public view returns (NFTListing[] memory){
+    function getAllListedNFTs() public view returns (NFTListing[] memory) {
         uint256 totalNFTCount = currentTokenId;
-        NFTListing[] memory listedNFTs = new NFTListing[](totalNFTCount);
+        uint256 listedCount = 0;
         uint256 currentIndex = 0;
 
-        for(uint256 i = 0; i < totalNFTCount; i++){
-            uint256 tokenId = i + 1;
-            NFTListing storage listing = tokenIdToListing[tokenId];
-            listedNFTs[currentIndex] = listing;
-            currentIndex += 1;
+        for (uint256 i = 0; i < totalNFTCount; i++) {
+            if (tokenIdToListing[i + 1].isListed) {
+                listedCount++;
+            }
+        }
+
+        NFTListing[] memory listedNFTs = new NFTListing[](listedCount);
+        for (uint256 i = 0; i < totalNFTCount; i++) {
+            if (tokenIdToListing[i + 1].isListed) {
+                uint256 tokenId = i + 1;
+                NFTListing storage listing = tokenIdToListing[tokenId];
+                listedNFTs[currentIndex] = listing;
+                currentIndex += 1;
+            }
         }
 
         return listedNFTs;
@@ -107,15 +115,15 @@ contract NFTSTORE is ERC721URIStorage {
         uint256 myNFTCount = 0;
         uint256 currentIndex = 0;
 
-        for(uint256 i = 0; i < totalNFTCount; i++){
-            if(tokenIdToListing[i+1].owner == msg.sender || tokenIdToListing[i+1].seller == msg.sender){
+        for (uint256 i = 0; i < totalNFTCount; i++) {
+            if (tokenIdToListing[i + 1].owner == msg.sender || tokenIdToListing[i + 1].seller == msg.sender) {
                 myNFTCount++;
             }
         }
 
         NFTListing[] memory myNFTs = new NFTListing[](myNFTCount);
-        for(uint256 i = 0; i < totalNFTCount; i++){
-            if(tokenIdToListing[i+1].owner == msg.sender || tokenIdToListing[i+1].seller == msg.sender){
+        for (uint256 i = 0; i < totalNFTCount; i++) {
+            if (tokenIdToListing[i + 1].owner == msg.sender || tokenIdToListing[i + 1].seller == msg.sender) {
                 uint256 tokenId = i + 1;
                 NFTListing storage listing = tokenIdToListing[tokenId];
                 myNFTs[currentIndex] = listing;
